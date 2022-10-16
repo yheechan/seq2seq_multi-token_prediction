@@ -2,3 +2,4 @@ data/
 datazip/
 test.py
 test.ipynb
+__pycache__
