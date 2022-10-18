@@ -153,19 +153,22 @@ class Attention(nn.Module):
         postfix_attn_dist = F.softmax(postfix_attn_score, dim=1)
 
 
-        # [batch_size, token numbers, hidden_size*2]
-        prefix_weighted = torch.bmm(prefix_attn_dist, decoder_prefix_hiddens)
-        postfix_weighted = torch.bmm(postfix_attn_dist, decoder_postfix_hiddens)
+        # [batch_size, 1, token number]
+        prefix_attn_dist_perm = prefix_attn_dist.permute(0, 2, 1)
+        postfix_attn_dist_perm = postfix_attn_dist.permute(0, 2, 1)
 
 
-        prefix_weighted_perm = prefix_weighted.permute(0, 2, 1)
-        postfix_weighted_perm = postfix_weighted.permute(0, 2, 1)
+        # [batch_size, 1, hidden_size*2]
+        prefix_weighted = torch.bmm(prefix_attn_dist_perm, encoder_prefix_hiddens)
+        postfix_weighted = torch.bmm(postfix_attn_dist_perm, encoder_postfix_hiddens)
+
 
         # [batch_size, hidden_size*2]
-        prefix_attn_value = torch.sum(prefix_weighted_perm, 2)
-        postfix_attn_value = torch.sum(postfix_weighted_perm, 2)
+        prefix_attn_value = torch.sum(prefix_weighted, 1)
+        postfix_attn_value = torch.sum(postfix_weighted, 1)
 
 
+        # [batch_size, hidden_size*2]
         decoder_prefix_hiddens_squeeze = decoder_prefix_hiddens.squeeze(1)
         decoder_postfix_hiddens_squeeze = decoder_postfix_hiddens.squeeze(1)
 

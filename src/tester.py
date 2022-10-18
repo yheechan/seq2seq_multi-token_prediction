@@ -95,7 +95,7 @@ def test(
 
             for i in range(-1, label_len-1, 1):
 
-                # [batch_size, single token, hidden_size*2*2]
+                # [batch_size, single token, hidden_size*2]
                 decoder_prefix_hiddens, prefix_state = prefix_pack[decoder_mod_idx](input, prefix_state)
                 decoder_postfix_hiddens, postfix_state = postfix_pack[decoder_mod_idx](input, postfix_state)
 

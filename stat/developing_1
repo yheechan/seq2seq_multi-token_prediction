@@ -1,0 +1,2 @@
+boringssl_developing_1_1	 |	loss: 27.046522620186437	 |	acc: 89.50180403254333	 |	 time: 225.1714 min
+boringssl_developing_1_tmp	 |	loss: 12.150137231085973	 |	acc: 86.11687301025822	 |	 time: 1.1796 min
