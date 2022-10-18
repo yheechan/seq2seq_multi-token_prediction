@@ -9,6 +9,11 @@ def insertSOSandEOS(tok_list):
     tmp = list(tmp)
     return tmp
 
+def insertEOS(tok_list, idx):
+    tmp = tok_list
+    tmp.insert(idx, 214)
+    return tmp
+
 def getTrainData(proj_list, target_project):
 
     total_file = 'total'
@@ -34,7 +39,9 @@ def getTrainData(proj_list, target_project):
 
             prefix.append(insertSOSandEOS(json_data['prefix']))
             postfix.append(insertSOSandEOS(json_data['postfix']))
-            label_type.append(insertSOSandEOS(json_data['label-type']))
+
+            label_type.append(insertEOS(json_data['label-type'], json_data['label-len']))
+
             label_len.append(json_data['label-len'])
     
     return np.array(prefix), np.array(postfix), np.array(label_type), np.array(label_len)
@@ -50,11 +57,14 @@ def getTestData(target_project):
         lines = f.readlines()
     
     for line in lines:
+
         json_data = json.loads(line.rstrip())
 
-        prefix.append(json_data['prefix'])
-        postfix.append(json_data['postfix'])
-        label_type.append(json_data['label-type'])
+        prefix.append(insertSOSandEOS(json_data['prefix']))
+        postfix.append(insertSOSandEOS(json_data['postfix']))
+
+        label_type.append(insertEOS(json_data['label-type'], json_data['label-len']))
+
         label_len.append(json_data['label-len'])
     
     return np.array(prefix), np.array(postfix), np.array(label_type), np.array(label_len)

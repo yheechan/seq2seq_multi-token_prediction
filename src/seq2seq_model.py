@@ -38,17 +38,11 @@ class Encoder(nn.Module):
 
         # embedded_output = [batch_size, embed_dim] --> [batch_size, data_length(token numbers), embed_dim]
         embedded_output = self.embedding(input)
-        print('--after embeding--')
-        print(embedded_output.shape)
         
         # output = [batch_size, data_length(token numbers), embed_dim] --> [batch_size, data_length(token numbers), hidden_size*2]
         # hidden = [batch_size, data_length(token numbers), embed_dim] --> [2, batch_size, hidden_size]
         # cell = [batch_size, data_length(token numbers), embed_dim] --> [2, batch_size, hidden_size] 
         output, (hidden, cell) = self.lstm(embedded_output)
-        print('--after lstm output, hidden, cell--')
-        print(output.shape)
-        print(hidden.shape)
-        print(cell.shape)
 
         return output, (hidden, cell)
     
@@ -56,7 +50,7 @@ class Encoder(nn.Module):
         return torch.zeros(1, 1, self.hidden_size, device=self.device)
 
 
-class AttnDecoder(nn.Module):
+class Decoder(nn.Module):
     def __init__(
         self,
         embed_dim,
@@ -68,7 +62,7 @@ class AttnDecoder(nn.Module):
         input_size,
         device
     ):
-        super(AttnDecoder, self).__init__()
+        super(Decoder, self).__init__()
 
         self.embed_dim = embed_dim
         self.hidden_size = hidden_size
@@ -98,77 +92,122 @@ class AttnDecoder(nn.Module):
 
         # self.out = nn.Linear(self.hidden_size, self.output_size)
 
-    def forward(self, input, encoder_outputs):
-
-        print('--enter decoder input, encoder_output, hidden, cell--')
-        print(input.shape)
-        print(encoder_outputs.shape)
-        print(hidden.shape)
-        print(cell.shape)
+    def forward(self, input, end_state):
 
         # embedded_output = [batch_size, 1] --> [batch_size, 1, embed_dim]
         embedded_output = self.embedding(input)
-        print('--decoder embeding shape--')
-        print(embedded_output.shape)
 
         # output = [batch_size, 1, embed_dim] --> [batch_size, 1, hidden_size*2] 
         # hidden = [batch_size, 1, embed_dim] --> [2, batch_size, hidden_size]
         # cell = [batch_size, 1, embed_dim] --> [2, batch_size, hidden_size]
         # hidden and cell contains the final state for each data in the batch
-        output, (hidden, cell) = self.lstm(embedded_output, (hidden, cell))
-        print('--after lstm output, hidden, cell--')
-        print(output.shape)
-        print(hidden.shape)
-        print(cell.shape)
+        output, (hidden, cell) = self.lstm(embedded_output, end_state)
 
-        # change hidden state of decoder embedding of single token 
-        # to match hidden states in each state of encoder
-        # encoder_output --> [batch_size, data_length(token numbers), embed_dim]
-        # output from lstm decoder --> [batch_size, embed_dim, 1]
-        output_perm = output.permute(0, 2, 1)
-        print('--after permute output--')
-        print(encoder_outputs.shape)
-        print(output_perm.shape)
-
-        # attn_score = [batch_size, data_length(token numbers), 1]
-        attn_score = torch.bmm(encoder_outputs, output_perm)
-        print('--bmm shape--')
-        print(attn_score.shape)
-
-        # [batch_size, data_length(token numbers), 1]
-        attn_dist = F.softmax(attn_score)
-        print('--attn_dist--')
-        print(attn_dist.shape)
-
-        # [batch_size, data_length(token numbers), hidden_size*2]
-        weighted = torch.bmm(attn_dist, output)
-        print('--weighted--')
-        print(weighted.shape)
-
-
-        # [batch_size, data_length(token numbers)]
-        attn_value = torch.sum(weighted, 2)
-        print('--attn value--')
-        print(attn_value.shape)
-
-        return attn_value, output
+        return output, (hidden, cell)
 
 
     def initHidden(self):
         return torch.zeros(1, 1, self.hidden_size, device=self.device)
 
+class Attention(nn.Module):
+    def __init__(
+        self,
+        hidden_size,
+        output_size,
+        dropout
+    ):
+        super(Attention, self).__init__()
+
+        self.hidden_size = hidden_size
+        self.output_size = output_size
+        self.dropout = dropout
+
+        self.fc = nn.Linear(
+            self.hidden_size*2*2*2,
+            self.output_size
+        )
+
+        self.dp = nn.Dropout(self.dropout)
+
+    def forward(
+        self,
+        encoder_prefix_hiddens,
+        encoder_postfix_hiddens,
+        decoder_prefix_hiddens,
+        decoder_postfix_hiddens
+    ):
+
+
+        # [batch_size, hidden_size*2, single token]
+        decoder_prefix_hiddens_perm = decoder_prefix_hiddens.permute(0, 2, 1)
+        decoder_postfix_hiddens_perm = decoder_postfix_hiddens.permute(0, 2, 1) 
+
+
+        # [batch_size, token numbers token, 1]
+        prefix_attn_score = torch.bmm(encoder_prefix_hiddens, decoder_prefix_hiddens_perm)
+        postfix_attn_score = torch.bmm(encoder_postfix_hiddens, decoder_postfix_hiddens_perm)
+
+
+        # [batch_size, token numbers, 1]
+        prefix_attn_dist = F.softmax(prefix_attn_score, dim=1)
+        postfix_attn_dist = F.softmax(postfix_attn_score, dim=1)
+
+
+        # [batch_size, token numbers, hidden_size*2]
+        prefix_weighted = torch.bmm(prefix_attn_dist, decoder_prefix_hiddens)
+        postfix_weighted = torch.bmm(postfix_attn_dist, decoder_postfix_hiddens)
+
+
+        prefix_weighted_perm = prefix_weighted.permute(0, 2, 1)
+        postfix_weighted_perm = postfix_weighted.permute(0, 2, 1)
+
+        # [batch_size, hidden_size*2]
+        prefix_attn_value = torch.sum(prefix_weighted_perm, 2)
+        postfix_attn_value = torch.sum(postfix_weighted_perm, 2)
+
+
+        decoder_prefix_hiddens_squeeze = decoder_prefix_hiddens.squeeze(1)
+        decoder_postfix_hiddens_squeeze = decoder_postfix_hiddens.squeeze(1)
+
+
+        # [batch_size, hidden_size*2*2]
+        prefix_cat = torch.cat((decoder_prefix_hiddens_squeeze, prefix_attn_value), 1)
+        postfix_cat = torch.cat((decoder_postfix_hiddens_squeeze, postfix_attn_value), 1)
+
+
+        # [batch_size, hidden_size*2*2*2]
+        final_cat = torch.cat((prefix_cat, postfix_cat), 1)
+
+
+        final_tanh = torch.tanh(final_cat)
+
+
+        # [batch_size, output_size]
+        y = self.fc(self.dp(F.relu(final_tanh)))
+
+
+        # [batch_size, output_size]
+        result = F.log_softmax(y, dim=1)
+
+        return result
+
+
+
+
 
 class MySeq2Seq(nn.Module):
     def __init__(
         self,
-        embed_dim=64,
-        hidden_size=30,
-        n_layers=1,
-        output_size=214,
-        dropout=0.0,
-        max_length=65,
-        input_size=214,
-        device=None
+        embed_dim=128,
+        hidden_size=200,
+        n_layers=2,
+        output_size=215,
+        dropout=0.3,
+        max_length=66,
+        input_size=215,
+        device=None,
+        loss_fn=None,
+        teacher_forcing=True
     ):
 
         super(MySeq2Seq, self).__init__()
@@ -181,6 +220,8 @@ class MySeq2Seq(nn.Module):
         self.max_length = max_length
         self.input_size = input_size
         self.device = device
+        self.loss_fn=loss_fn
+        self.teacher_forcing=teacher_forcing
 
         self.prefixEncoder = Encoder(
             embed_dim = self.embed_dim,
@@ -200,7 +241,7 @@ class MySeq2Seq(nn.Module):
             device = self.device
         )
 
-        self.decoder = AttnDecoder(
+        self.decoder = Decoder(
            embed_dim = self.embed_dim,
            hidden_size = self.hidden_size,
            n_layers = self.n_layers,
@@ -211,45 +252,81 @@ class MySeq2Seq(nn.Module):
            device = self.device 
         )
 
-    def forward(self, prefix, postfix, labels):
-        print('--prefix shape--')
-        print(prefix.shape)
-        print('--label shape--')
-        print(labels.shape)
+        self.attn = Attention(
+            hidden_size = self.hidden_size,
+            output_size = self.output_size,
+            dropout = self.dropout
+        )
+
+
+    def forward(
+        self,
+        prefix,
+        postfix,
+        labels,
+    ):
 
         batch_size = labels.shape[0]
         label_len = labels.shape[1]
 
         # encoder [batch_size, embed_dim] -->
-        # output = [batch_size, data_length(token numbers), hidden_size*2]
+        # output = [batch_size, token numbers, hidden_size*2]
         # hidden = [2, batch_size, hidden_size]
-        prefix_output, (prefix_hidden, prefix_cell) = self.prefixEncoder(prefix)
-        previous_prefix_hidden = prefix_output
+        encoder_prefix_hiddens, prefix_state = self.prefixEncoder(prefix)
 
 
         # encoder [batch_size, embed_dim] -->
-        # output = [batch_size, data_length(token numbers), hidden_size*2]
+        # output = [batch_size, token numbers, hidden_size*2]
         # hidden = [2, batch_size, hidden_size]
-        postfix_output, (postfix_hidden, postfix_cell) = self.postfixEncoder(postfix)
-        previous_postfix_hidden = postfix_output
+        encoder_postfix_hiddens, postfix_state = self.postfixEncoder(postfix)
+
 
         # gives the first token for each labels in batch
         # input = [batch_size, 1] (containing the 0st token)
-        input = labels[:,0].unsqueeze(1)
-        print('--first input to decoder shape--')
-        print(input.shape)
+        # input = labels[:,0].unsqueeze(1)
+        input = torch.full((batch_size, 1), 213).to(self.device)
 
-        for i in range(1, label_len):
 
-            # output --> [batch_size, data_length(token numbers)]
-            # hidden --> [batch_size, 1, hidden_size*2]
-            attn_prefix_output, previous_prefix_hidden = self.decoder(input, previous_prefix_hidden)
+        # [label_len, batch_size, output_size]
+        outputs = torch.zeros(
+            label_len, batch_size, self.output_size
+        ).to(self.device)
 
-            # output --> [batch_size, data_length(token numbers)]
-            # hidden --> [batch_size, 1, hidden_size*2]
-            attn_postfix_output, previous_postfix_hidden = self.decoder(input, previous_postfix_hidden)
+        loss = 0
+        loss_box = []
+        acc_box = []
+
+        for i in range(-1, label_len-1, 1):
+
+            # [batch_size, single token, hidden_size*2*2]
+            decoder_prefix_hiddens, prefix_state = self.decoder(input, prefix_state)
+            decoder_postfix_hiddens, postfix_state = self.decoder(input, postfix_state)
+
+            # [batch_size, output_size]
+            result = self.attn(
+                encoder_prefix_hiddens,
+                encoder_postfix_hiddens,
+                decoder_prefix_hiddens,
+                decoder_postfix_hiddens
+            )
+
+            # [batch_size]
+            expected = labels[:, i+1]
+            # [batch_size, output_size]
+            outputs[i+1] = result 
+
+            loss += self.loss_fn(result, expected)
+            loss_box.append(loss.item()/1+(i+1))
+            
+            preds = result.argmax(1).flatten()
+            acc = (preds == expected).cpu().numpy().mean() * 100
+            acc_box.append(acc)
 
             # depending on teacher forcing
-            # input = labels[:,i]
+            # [bach_size, 1]
+            if self.teacher_forcing:
+                input = labels[:,i+1].unsqueeze(1)
+            else:
+                input = result.argmax(1).unsqueeze(1)
 
-            break
+        return outputs.permute(1, 0, 2), loss, loss_box, acc_box 

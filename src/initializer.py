@@ -3,45 +3,51 @@ import torch.optim as optim
 import torch.nn as nn
 
 def initialize_model(
-    vocab_size=None,
-    embed_dim=200,
-    hidden_size=100,
-    num_classes=2,
-    rnn_layers=3,
-    num_filters=[100, 100, 100],
-    kernel_sizes=[8, 8, 8],
-    dropout=0.2,
     learning_rate=0.001,
-    weight_decay=1e-4,
-    model_name="RNN",
-    optim_name="Adam",
-    loss_fn_name="CEL",
-    pretrained_model=None,
-    freeze_embedding=False,
-    device=None,):
+    weight_decay=0.0,
+    embed_dim=128,
+    hidden_size=200,
+    n_layers=2,
+    output_size=215,
+    dropout=0.3,
+    max_length=66,
+    input_size=215,
+    device=None,
+    model_name='seq2seq',
+    optim_name='Adam',
+    loss_fn_name='CEL',
+    teacher_forcing=True
+):
 
-    if model_name == "RNN":
 
-        model = sm.C_rnn(
-            input_size=vocab_size,
+    if loss_fn_name == 'CEL':
+        loss_fn = nn.CrossEntropyLoss()
+
+
+    if model_name == 'seq2seq':
+
+        model = sm.MySeq2Seq(
             embed_dim=embed_dim,
             hidden_size=hidden_size,
-            n_classes=num_classes,
-            n_layers=rnn_layers,
+            n_layers=n_layers,
+            output_size=output_size,
             dropout=dropout,
-            pretrained_embedding=pretrained_model,
-            freeze_embedding=freeze_embedding
+            max_length=max_length,
+            input_size=input_size,
+            device=device,
+            loss_fn=loss_fn,
+            teacher_forcing=teacher_forcing
         )
 
     model.to(device)
+    
 
-    if optim_name == "Adam":
+    if optim_name == 'Adam':
         optimizer = optim.Adam(
             model.parameters(),
             lr=learning_rate,
-            weight_decay=weight_decay)
-    
-    if loss_fn_name == "CEL":
-        loss_fn = nn.CrossEntropyLoss()
-    
+            weight_decay=weight_decay
+        )
+
+
     return model, optimizer, loss_fn
