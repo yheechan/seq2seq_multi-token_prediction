@@ -18,13 +18,32 @@ def train(
     train_dataloader=None,
     val_dataloader=None,
     device=None,
-    model=None,
-    optimizer=None,
-    loss_fn=None
+    loss_fn=None,
+    prefix_pack=None,
+    postfix_pack=None,
+    attn_pack=None,
+    teacher_forcing_ratio=100.0
 ):
 
+    teacher_forcing = True
+
     best_accuracy = 0
-    model.to(device)
+
+    encoder_mod_idx = 0
+    decoder_mod_idx = 1
+    encoder_opt_idx = 2
+    decoder_opt_idx = 3
+
+    attn_mod_idx = 0
+    attn_opt_idx = 1
+
+    prefix_pack[encoder_mod_idx].to(device)
+    postfix_pack[encoder_mod_idx].to(device)
+    prefix_pack[decoder_mod_idx].to(device)
+    postfix_pack[decoder_mod_idx].to(device)
+
+    attn_pack[attn_mod_idx].to(device)
+    
     
     print("Start training...\n")
     print(f"{'Epoch':^7} | {'Train Loss':^12} | {'Train Acc':^10} | {'Val Loss':^8} | {'Val Acc':^6} | {'Elapsed':^6}")
@@ -39,58 +58,116 @@ def train(
         # Tracking time and loss
         t0_epoch = time.time()
 
+
         # Put the model into the training mode
-        model.train()
+        prefix_pack[encoder_mod_idx].train()
+        postfix_pack[encoder_mod_idx].train()
+        prefix_pack[decoder_mod_idx].train()
+        postfix_pack[decoder_mod_idx].train()
+
+        attn_pack[attn_mod_idx].train()
+
+
         tot_train_acc = []
         tot_train_loss = []
 
-        torch.autograd.set_detect_anomaly(True)
 
         for step, batch in enumerate(train_dataloader):
+
+
             # Load batch to GPU
             prefix, postfix, label = tuple(t.to(device) for t in batch)
 
+
             # Zero out any previously calculated gradients
             # model.zero_grad()
-            optimizer.zero_grad()
+            prefix_pack[encoder_opt_idx].zero_grad()
+            postfix_pack[encoder_opt_idx].zero_grad()
+            prefix_pack[decoder_opt_idx].zero_grad()
+            postfix_pack[decoder_opt_idx].zero_grad()
+
+            attn_pack[attn_opt_idx].zero_grad()
+
+
+            batch_size = label.shape[0]
+            label_len = label.shape[1]
+
 
             # Perform a forward pass. This will return logits.
-            logits, loss, tot_train_loss, tot_train_acc = model(
-                prefix, postfix, label
-            )
+    
+            # encoder [batch_size, embed_dim] -->
+            # output = [batch_size, token numbers, hidden_size*2]
+            # hidden = [2, batch_size, hidden_size]
+            encoder_prefix_hiddens, prefix_state = prefix_pack[encoder_mod_idx](prefix)
+    
+    
+            # encoder [batch_size, embed_dim] -->
+            # output = [batch_size, token numbers, hidden_size*2]
+            # hidden = [2, batch_size, hidden_size]
+            encoder_postfix_hiddens, postfix_state = postfix_pack[encoder_mod_idx](postfix)
 
-            # print('--b4 logits and label--')
-            # print(logits.shape)
-            # print(label.shape)
 
-            # output_dim = logits.shape[-1]
+            # gives the first token for each labels in batch
+            # input = [batch_size, 1] (containing the 0st token)
+            # input = labels[:,0].unsqueeze(1)
+            input = torch.full((batch_size, 1), 213).to(device)
 
-            # print('--output_dim--')
-            # print(output_dim)
 
-            # logits = logits.view(-1, output_dim)
-            # label = label.view(-1)
+            # [label_len, batch_size, output_size]
+            outputs = torch.zeros(
+                label_len, batch_size, 216
+            ).to(device)
 
-            # # Compute loss and accumulate the loss values
-            # print('--after logits and label--')
-            # print(logits.shape)
-            # print(label.shape)
 
-            # loss = loss_fn(logits, label)
-            # tot_train_loss.append(loss.item())
+            loss = 0
 
-            # # Get the predictions
-            # preds = torch.argmax(logits, dim=1).flatten()
 
-            # # Calculate the accuracy rate
-            # accuracy = (preds == label).cpu().numpy().mean() * 100
-            # tot_train_acc.append(accuracy)
+            teacher_forcing = True if random.random() < teacher_forcing_ratio else False
 
-            # Perform a backward pass to calculate gradients
+
+            for i in range(-1, label_len-1, 1):
+
+                # [batch_size, single token, hidden_size*2*2]
+                decoder_prefix_hiddens, prefix_state = prefix_pack[decoder_mod_idx](input, prefix_state)
+                decoder_postfix_hiddens, postfix_state = postfix_pack[decoder_mod_idx](input, postfix_state)
+
+                # [batch_size, output_size]
+                result = attn_pack[attn_mod_idx](
+                    encoder_prefix_hiddens,
+                    encoder_postfix_hiddens,
+                    decoder_prefix_hiddens,
+                    decoder_postfix_hiddens
+                )
+
+                # [batch_size]
+                expected = label[:, i+1]
+                # [batch_size, output_size]
+                outputs[i+1] = result 
+
+                loss += loss_fn(result, expected)
+                tot_train_loss.append(loss.item()/1+(i+1))
+                
+                preds = result.argmax(1).flatten()
+                acc = (preds == expected).cpu().numpy().mean() * 100
+                tot_train_acc.append(acc)
+
+                # depending on teacher forcing
+                # [bach_size, 1]
+                if teacher_forcing:
+                    input = label[:,i+1].unsqueeze(1)
+                else:
+                    input = result.argmax(1).unsqueeze(1) 
+
+
             loss.backward()
 
             # Update parameters
-            optimizer.step()
+            prefix_pack[encoder_opt_idx].step()
+            postfix_pack[encoder_opt_idx].step()
+            prefix_pack[decoder_opt_idx].step()
+            postfix_pack[decoder_opt_idx].step()
+
+            attn_pack[attn_opt_idx].step()
         
 
 
@@ -105,10 +182,14 @@ def train(
         if val_dataloader is not None:
             # After the completion of each training epoch, measure the model's
             # performance on our validation set.
-            val_loss, val_acc = evaluate(device=device,
-                                         model=model,
-                                         loss_fn=loss_fn,
-                                         val_dataloader=val_dataloader)
+            val_loss, val_acc = evaluate(
+                val_dataloader=val_dataloader,
+                device=device,
+                loss_fn=loss_fn,
+                prefix_pack=prefix_pack,
+                postfix_pack=postfix_pack,
+                attn_pack=attn_pack
+            )
 
             # Track the best accuracy
             if val_acc > best_accuracy:
@@ -132,47 +213,130 @@ def train(
     print(f"Training complete! Best accuracy: {best_accuracy:.2f}%.")
 
 def evaluate(
-    device=None, 
-    model=None,
+    val_dataloader=None,
+    device=None,
     loss_fn=None,
-    val_dataloader=None):
+    prefix_pack=None,
+    postfix_pack=None,
+    attn_pack=None
+):
 
     """After the completion of each training epoch, measure the model's
     performance on our validation set.
     """
 
 
+    teacher_forcing = False
+
+    encoder_mod_idx = 0
+    decoder_mod_idx = 1
+    encoder_opt_idx = 2
+    decoder_opt_idx = 3
+
+    attn_mod_idx = 0
+    attn_opt_idx = 1
+
+
     # Put the model into the evaluation mode. The dropout layers are disabled
     # during the test time.
-    model.to(device)
-    model.eval()
+    prefix_pack[encoder_mod_idx].to(device)
+    postfix_pack[encoder_mod_idx].to(device)
+    prefix_pack[decoder_mod_idx].to(device)
+    postfix_pack[decoder_mod_idx].to(device)
+
+    attn_pack[attn_mod_idx].to(device)
+
+
+    prefix_pack[encoder_mod_idx].eval()
+    postfix_pack[encoder_mod_idx].eval()
+    prefix_pack[decoder_mod_idx].eval()
+    postfix_pack[decoder_mod_idx].eval()
+
+    attn_pack[attn_mod_idx].eval()
+
 
     # Tracking variables
     val_loss = []
     val_accuracy = []
 
+
     # For each batch in our validation set...
-    for batch in val_dataloader:
+    for step, batch in enumerate(val_dataloader):
+
+
         # Load batch to GPU
         prefix, postfix, label = tuple(t.to(device) for t in batch)
 
         # Compute logits
         with torch.no_grad():
+
+
+            batch_size = label.shape[0]
+            label_len = label.shape[1]
+
+
             # Perform a forward pass. This will return logits.
-            logits, loss, val_loss, val_accuracy = model(
-                prefix, postfix, label
-            )
+    
+            # encoder [batch_size, embed_dim] -->
+            # output = [batch_size, token numbers, hidden_size*2]
+            # hidden = [2, batch_size, hidden_size]
+            encoder_prefix_hiddens, prefix_state = prefix_pack[encoder_mod_idx](prefix)
+    
+    
+            # encoder [batch_size, embed_dim] -->
+            # output = [batch_size, token numbers, hidden_size*2]
+            # hidden = [2, batch_size, hidden_size]
+            encoder_postfix_hiddens, postfix_state = postfix_pack[encoder_mod_idx](postfix)
 
-        # # Compute loss
-        # loss = loss_fn(logits, label)
-        # val_loss.append(loss.item())
 
-        # # Get the predictions
-        # preds = torch.argmax(logits, dim=1).flatten()
+            # gives the first token for each labels in batch
+            # input = [batch_size, 1] (containing the 0st token)
+            # input = labels[:,0].unsqueeze(1)
+            input = torch.full((batch_size, 1), 213).to(device)
 
-        # # Calculate the accuracy rate
-        # accuracy = (preds == label).cpu().numpy().mean() * 100
-        # val_accuracy.append(accuracy)
+
+            # [label_len, batch_size, output_size]
+            outputs = torch.zeros(
+                label_len, batch_size, 216
+            ).to(device)
+
+
+            loss = 0
+
+
+            for i in range(-1, label_len-1, 1):
+
+                # [batch_size, single token, hidden_size*2*2]
+                decoder_prefix_hiddens, prefix_state = prefix_pack[decoder_mod_idx](input, prefix_state)
+                decoder_postfix_hiddens, postfix_state = postfix_pack[decoder_mod_idx](input, postfix_state)
+
+                # [batch_size, output_size]
+                result = attn_pack[attn_mod_idx](
+                    encoder_prefix_hiddens,
+                    encoder_postfix_hiddens,
+                    decoder_prefix_hiddens,
+                    decoder_postfix_hiddens
+                )
+
+                # [batch_size]
+                expected = label[:, i+1]
+                # [batch_size, output_size]
+                outputs[i+1] = result 
+
+                loss += loss_fn(result, expected)
+                val_loss.append(loss.item()/1+(i+1))
+                
+                preds = result.argmax(1).flatten()
+                acc = (preds == expected).cpu().numpy().mean() * 100
+                val_accuracy.append(acc)
+
+                # depending on teacher forcing
+                # [bach_size, 1]
+                if teacher_forcing:
+                    input = label[:,i+1].unsqueeze(1)
+                else:
+                    input = result.argmax(1).unsqueeze(1) 
+
 
     # Compute the average accuracy and loss over the validation set.
     val_loss = np.mean(val_loss)
