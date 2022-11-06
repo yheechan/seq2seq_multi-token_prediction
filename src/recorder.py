@@ -44,12 +44,12 @@ def recordInfo(proj_list):
 
             for tok in json_data[prefix]:
                 if str(tok) not in sc_tokens:
-                    print('added source code token \"' + str(tok) + '\"')
+                    print('added source code prefix token to list of tokens\"' + str(tok) + '\"')
                     sc_tokens.append(str(tok))
             
             for tok in json_data[postfix]:
                 if str(tok) not in sc_tokens:
-                    print('added source code token \"' + str(tok) + '\"')
+                    print('added source code postfix token to list of tokens\"' + str(tok) + '\"')
                     sc_tokens.append(str(tok))
             
             if len(json_data[prefix]) > max_len: max_len = len(json_data[prefix])

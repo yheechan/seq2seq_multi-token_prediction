@@ -86,7 +86,7 @@ def test(
 
             # [label_len, batch_size, output_size]
             outputs = torch.zeros(
-                label_len, batch_size, 216
+                label_len, batch_size, 214
             ).to(device)
 
 

@@ -40,6 +40,27 @@ def saveModel(fn, project_nm, prefix_pack, postfix_pack, attn_pack):
 
     torch.save(attn_pack[attn_mod_idx], '../model/'+fn+'/'+project_nm+'/attention.pt')
 
-def getModel(fn):
-    model = torch.load('../model/'+fn+'.pt')
-    return model
+def getModel(fn, project_nm):
+
+    prefix_pack = list()
+    postfix_pack = list()
+    attn_pack = list()
+
+
+    encoder_mod_idx = 0
+    decoder_mod_idx = 1
+    encoder_opt_idx = 2
+    decoder_opt_idx = 3
+
+    attn_mod_idx = 0
+    attn_opt_idx = 1
+
+
+    prefix_pack.append( torch.load('../model/'+fn+'/'+project_nm+'/prefix_encoder.pt') )
+    postfix_pack.append( torch.load('../model/'+fn+'/'+project_nm+'/postfix_encoder.pt') )
+    prefix_pack.append( torch.load('../model/'+fn+'/'+project_nm+'/prefix_decoder.pt') )
+    postfix_pack.append( torch.load('../model/'+fn+'/'+project_nm+'/postfix_decoder.pt') )
+
+    attn_pack.append( torch.load('../model/'+fn+'/'+project_nm+'/attention.pt') )
+
+    return prefix_pack, postfix_pack, attn_pack

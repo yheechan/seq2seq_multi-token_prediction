@@ -4,3 +4,5 @@ boringssl_developing_1_2	 |	loss: 21.941512239297708	 |	acc: 90.56027591085957	 
 boringssl_developing_1_dp3   |  loss: 22.896130837154843   |  acc: 90.69557835160948   |   time: 437.939 min
 boringssl_developing_1_wd	 |	loss: 11.661640846875812	 |	acc: 91.45104350902017	 |	 time: 214.757 min
 boringssl_developing_1_reduced   |  loss: 21.498742875390395   |  acc: 90.54432260346657   |   time: 237.863 min
+boringssl_developing_1_3	 |	loss: 11.64913550878967	 |	acc: 91.47576936681995	 |	 time: 131.847 min
+boringssl_developing_1_tf5   |  loss: 21.498742875390395   |  acc: 90.54432260346657   |   time: 238.068 min

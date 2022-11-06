@@ -110,12 +110,14 @@ def train(
             # gives the first token for each labels in batch
             # input = [batch_size, 1] (containing the 0st token)
             # input = labels[:,0].unsqueeze(1)
+
+            # 213 is BOS
             input = torch.full((batch_size, 1), 213).to(device)
 
 
             # [label_len, batch_size, output_size]
             outputs = torch.zeros(
-                label_len, batch_size, 216
+                label_len, batch_size, 214
             ).to(device)
 
 
@@ -297,7 +299,7 @@ def evaluate(
 
             # [label_len, batch_size, output_size]
             outputs = torch.zeros(
-                label_len, batch_size, 216
+                label_len, batch_size, 214
             ).to(device)
 
 
