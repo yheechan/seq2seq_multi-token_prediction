@@ -26,7 +26,10 @@ def getTrainData(proj_list, target_project):
 
     for proj in proj_list:
         
-        if proj == target_project or proj == total_file: continue
+        # if proj == target_project or proj == total_file: continue
+
+        # don't remove target file for training web model
+        if proj == total_file: continue
 
         print('Getting data for \"' + target_project + '\" from \"' + proj + '\"')
 

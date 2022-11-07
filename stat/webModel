@@ -1,1 +1,2 @@
 boringssl_webModel_1	 |	loss: 11.91601095888085	 |	acc: 91.47141846480368	 |	 time: 132.549 min
+boringssl_webModel_all	 |	loss: 8.657929990149384	 |	acc: 95.01149628581535	 |	 time: 162.71 min
