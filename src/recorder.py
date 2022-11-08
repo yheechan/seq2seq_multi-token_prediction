@@ -61,6 +61,9 @@ def recordInfo(proj_list):
                 label_len_dict[json_data[label_len]] += 1
         
         project_data.append(fn + ': \t\t' + str(len(lines)))
+
+    token_choices.append('213')
+    sc_tokens.append('213')
     
     record_list('../record/project_data', project_data)
     record_list('../record/token_choices', token_choices)

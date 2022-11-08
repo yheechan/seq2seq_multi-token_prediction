@@ -4,13 +4,14 @@ freetype2: 		15266
 guetzli: 		30330
 harfbuzz: 		32387
 lcms: 		85592
+libarchive: 		17036
 libpng: 		48531
-libssh: 		17709
-libxml2: 		234092
+libssh: 		17707
+libxml2: 		487553
 pcre2: 		54457
 proj4: 		107939
 re2: 		35898
-sqlite3: 		118448
+sqlite3: 		93913
 vorbis: 		55039
 woff2: 		53700
 wpantund: 		21944

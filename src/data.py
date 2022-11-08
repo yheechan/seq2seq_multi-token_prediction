@@ -47,7 +47,7 @@ def getTrainData(proj_list, target_project):
             prefix.append(json_data['prefix'])
             postfix.append(json_data['postfix'])
 
-            label_type.append(insertEOS(json_data['label-type'], json_data['label-len']))
+            label_type.append(json_data['label-type'])
 
             label_len.append(json_data['label-len'])
     
@@ -77,7 +77,7 @@ def getTestData(target_project):
         prefix.append(json_data['prefix'])
         postfix.append(json_data['postfix'])
 
-        label_type.append(insertEOS(json_data['label-type'], json_data['label-len']))
+        label_type.append(json_data['label-type'])
 
         label_len.append(json_data['label-len'])
     

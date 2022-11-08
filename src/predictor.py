@@ -136,7 +136,7 @@ def bean_search(
 
     value = input[0].item()
 
-    if limit == 10 or value == 1:
+    if limit == 10 or value == 0:
 
         score = log_score(score_stack)
 
