@@ -5,6 +5,102 @@ import math
 from collections import defaultdict
 import copy
 
+
+def predictNoBeam(prefix, postfix, prefix_pack, postfix_pack, attn_pack):
+
+    prefix = torch.tensor(prefix).unsqueeze(dim=0)
+    postfix = torch.tensor(postfix).unsqueeze(dim=0)
+
+    # --------------------------------------------------------
+
+    encoder_mod_idx = 0
+    decoder_mod_idx = 1
+    encoder_opt_idx = 2
+    decoder_opt_idx = 3
+
+    attn_mod_idx = 0
+    attn_opt_idx = 1
+
+
+    # --------------------------------------------------------
+
+    # Put the model into the evaluation mode. The dropout layers are disabled
+    # during the test time.
+    # prefix_pack[encoder_mod_idx].to(device)
+    # postfix_pack[encoder_mod_idx].to(device)
+    # prefix_pack[decoder_mod_idx].to(device)
+    # postfix_pack[decoder_mod_idx].to(device)
+
+    # attn_pack[attn_mod_idx].to(device)
+
+
+    prefix_pack[encoder_mod_idx].cpu()
+    postfix_pack[encoder_mod_idx].cpu()
+    prefix_pack[decoder_mod_idx].cpu()
+    postfix_pack[decoder_mod_idx].cpu()
+
+    attn_pack[attn_mod_idx].cpu()
+
+
+    prefix_pack[encoder_mod_idx].eval()
+    postfix_pack[encoder_mod_idx].eval()
+    prefix_pack[decoder_mod_idx].eval()
+    postfix_pack[decoder_mod_idx].eval()
+
+    attn_pack[attn_mod_idx].eval()
+
+    # --------------------------------------------------------
+
+    # Perform a forward pass. This will return logits.
+    
+    # encoder [batch_size, embed_dim] -->
+    # output = [batch_size, token numbers, hidden_size*2]
+    # hidden = [2, batch_size, hidden_size]
+    encoder_prefix_hiddens, prefix_state = prefix_pack[encoder_mod_idx](prefix)
+
+
+    # encoder [batch_size, embed_dim] -->
+    # output = [batch_size, token numbers, hidden_size*2]
+    # hidden = [2, batch_size, hidden_size]
+    encoder_postfix_hiddens, postfix_state = postfix_pack[encoder_mod_idx](postfix)
+
+
+
+    # gives the first token for each labels in batch
+    # input = [batch_size, 1] (containing the 0st token)
+    # input = labels[:,0].unsqueeze(1)
+    input = torch.full((1, 1), 213).cpu()
+
+    # --------------------------------------------------------
+
+    total_token_seq = list()
+
+    for i in range(-1, 10-1, 1):
+
+        # [batch_size, single token, hidden_size*2]
+        decoder_prefix_hiddens, prefix_state = prefix_pack[decoder_mod_idx](input, prefix_state)
+        decoder_postfix_hiddens, postfix_state = postfix_pack[decoder_mod_idx](input, postfix_state)
+
+        # [batch_size, output_size]
+        result = attn_pack[attn_mod_idx](
+            encoder_prefix_hiddens,
+            encoder_postfix_hiddens,
+            decoder_prefix_hiddens,
+            decoder_postfix_hiddens
+        )
+
+        
+        preds = result.argmax(1).flatten()
+        total_token_seq.append(preds.item())
+
+        input = result.argmax(1).unsqueeze(1) 
+    
+    print(total_token_seq)
+
+
+
+
+
 def predict(prefix, postfix, prefix_pack, postfix_pack, attn_pack):
 
     prefix = torch.tensor(prefix).unsqueeze(dim=0)
@@ -103,11 +199,11 @@ def predict(prefix, postfix, prefix_pack, postfix_pack, attn_pack):
 
     pred_results = []
     for i in range(5):
-        pred_results.append(total_token_seq[indices[i]])
+        # pred_results.append(total_token_seq[indices[i]])
+        ordered_score_idx = indices[i].item()
+        pred_results.append(total_token_seq[ordered_score_idx])
 
     return pred_results
-
-
 
 
 def bean_search(
@@ -131,42 +227,44 @@ def bean_search(
     score_stack
 ):
 
-    limit += 1
+    prefix_state, postfix_state, \
+    sorted, indices, next_input =   return_predictions(
+                            input,
 
+                            prefix_decoder,
+                            postfix_decoder,
 
-    value = input[0].item()
+                            prefix_state,
+                            postfix_state,
 
-    if limit == 10 or value == 0:
+                            attn_model,
 
-        score = log_score(score_stack)
-
-        total_token_seq.append( copy.deepcopy(token_stack) )
-        total_seq_score.append( score )
-
+                            encoder_prefix_hiddens,
+                            encoder_postfix_hiddens,
+                        )
     
-    else:
-        prefix_state, postfix_state, \
-        sorted, indices =   return_predictions(
-                                input,
+    
+    for i in range(2):
+        # token_stack.append(indices[i].item())
+        # score_stack.append(sorted[indices[i]].item())
 
-                                prefix_decoder,
-                                postfix_decoder,
+        input = torch.full((1, 1), indices[i].item()).cpu()
 
-                                prefix_state,
-                                postfix_state,
+        value = input[0].item()
 
-                                attn_model,
 
-                                encoder_prefix_hiddens,
-                                encoder_postfix_hiddens,
-                            )
-        
-        
-        for i in range(2):
+        if limit == 10 or value == 0:
+
+            score = log_score(score_stack)
+
+            total_token_seq.append( copy.deepcopy(token_stack) )
+            total_seq_score.append( score )
+
+        else:
+            limit += 1
+
             token_stack.append(indices[i].item())
-            score_stack.append(sorted[i].item())
-
-            input = torch.full((1, 1), indices[i].item()).cpu()
+            score_stack.append(sorted[indices[i]].item())
 
             bean_search(
                 input,
@@ -191,6 +289,10 @@ def bean_search(
 
             token_stack.pop()
             score_stack.pop()
+
+
+
+
 
 
 def log_score(list):
@@ -248,4 +350,4 @@ def return_predictions(
 
     # input = answer
 
-    return prefix_state, postfix_state, sorted, indices
+    return prefix_state, postfix_state, sorted, indices, answer

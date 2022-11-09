@@ -34,7 +34,6 @@ def getTrainData(proj_list, target_project):
         print('Getting data for \"' + target_project + '\" from \"' + proj + '\"')
 
         with open('../data/' + proj, 'r') as f:
-
             lines = f.readlines()
         
         for line in lines:
@@ -45,7 +44,11 @@ def getTrainData(proj_list, target_project):
             # postfix.append(insertSOSandEOS(json_data['postfix']))
 
             prefix.append(json_data['prefix'])
-            postfix.append(json_data['postfix'])
+
+            postfix_data = json_data['postfix']
+            postfix_data.pop()
+            postfix_data.insert(0, 0)
+            postfix.append(postfix_data)
 
             label_type.append(json_data['label-type'])
 
@@ -75,7 +78,11 @@ def getTestData(target_project):
         # postfix.append(insertSOSandEOS(json_data['postfix']))
 
         prefix.append(json_data['prefix'])
-        postfix.append(json_data['postfix'])
+
+        postfix_data = json_data['postfix']
+        postfix_data.pop()
+        postfix_data.insert(0, 0)
+        postfix.append(postfix_data)
 
         label_type.append(json_data['label-type'])
 
