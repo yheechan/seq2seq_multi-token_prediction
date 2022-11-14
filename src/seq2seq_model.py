@@ -1,5 +1,4 @@
 import random
-from unicodedata import bidirectional
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -105,22 +104,15 @@ class Decoder(nn.Module):
 
     def forward(self, input, end_state):
 
-
         # embedded_output = [batch_size, 1] --> [batch_size, 1, embed_dim]
         embedded_output = self.embedding(input)
-        # print('--embedd_output--')
-        # print(embedded_output.shape)
+
 
         # output = [batch_size, 1, embed_dim] --> [batch_size, 1, hidden_size*2] 
         # hidden = [batch_size, 1, embed_dim] --> [2, batch_size, hidden_size]
         # cell = [batch_size, 1, embed_dim] --> [2, batch_size, hidden_size]
         # hidden and cell contains the final state for each data in the batch
         output, (hidden, cell) = self.lstm(embedded_output, end_state)
-
-        # print('--final--')
-        # print(output.shape)
-        # print(hidden.shape)
-        # print(cell.shape)
 
         return output, (hidden, cell)
 
@@ -326,9 +318,6 @@ class MySeq2Seq(nn.Module):
         ).to(self.device)
 
 
-        # loss = 0
-        # loss_box = []
-        # acc_box = []
 
         # python random.random() return floating number between 0 and 1
         teacher_forcing = True if random.random() < teacher_forcing_ratio else False
