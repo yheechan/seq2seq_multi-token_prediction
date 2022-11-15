@@ -56,7 +56,7 @@ def getTrainData(proj_list, target_project):
     
         # ------------------------------------------------------
         # break for reducing test time for quick development
-        break
+        # break
     
     return np.array(prefix), np.array(postfix), np.array(label_type), np.array(label_len)
 

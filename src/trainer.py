@@ -179,7 +179,7 @@ def evaluate(
         with torch.no_grad():
 
 
-            results = model(prefix, postfix, labels, 0.0)
+            results = model(prefix, postfix, labels)
 
             # add loss for each token predicted
             for i in range(results.shape[0]):

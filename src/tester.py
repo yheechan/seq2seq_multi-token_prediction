@@ -32,16 +32,14 @@ def test(
         loss = 0
         all_loss = 0
 
-
         # Load batch to GPU
         prefix, postfix, labels = tuple(t.to(device) for t in batch)
-
 
         # Compute logits
         with torch.no_grad():
 
 
-            results = model(prefix, postfix, labels, 0.0)
+            results = model(prefix, postfix, labels)
 
             # add loss for each token predicted
             for i in range(results.shape[0]):

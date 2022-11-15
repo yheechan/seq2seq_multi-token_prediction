@@ -254,7 +254,7 @@ class MySeq2Seq(nn.Module):
         )
 
 
-    def forward(self, prefix, postfix, labels, teacher_forcing_ratio):
+    def forward(self, prefix, postfix, labels, teacher_forcing_ratio=0.0):
 
         batch_size = labels.shape[0]
         label_len = labels.shape[1]
