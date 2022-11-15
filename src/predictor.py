@@ -6,105 +6,93 @@ from collections import defaultdict
 import copy
 
 
-def predictNoBeam(prefix, postfix, prefix_pack, postfix_pack, attn_pack):
+def predictNoBeam(
+    prefix,
+    postfix,
+    model=None,
+    device=None
+):
+
+
+    # ********************* INSTANTIATE MODEL INPUT DATA *********************
 
     prefix = torch.tensor(prefix).unsqueeze(dim=0)
     postfix = torch.tensor(postfix).unsqueeze(dim=0)
 
-    # --------------------------------------------------------
+    labels = torch.zeros(1, 10).to(device).long()
 
-    encoder_mod_idx = 0
-    decoder_mod_idx = 1
-    encoder_opt_idx = 2
-    decoder_opt_idx = 3
-
-    attn_mod_idx = 0
-    attn_opt_idx = 1
+    model = model.to(device)
+    prefix = prefix.to(device)
+    postfix = postfix.to(device)
+    labels = labels.to(device)
 
 
-    # --------------------------------------------------------
-
-    # Put the model into the evaluation mode. The dropout layers are disabled
-    # during the test time.
-    # prefix_pack[encoder_mod_idx].to(device)
-    # postfix_pack[encoder_mod_idx].to(device)
-    # prefix_pack[decoder_mod_idx].to(device)
-    # postfix_pack[decoder_mod_idx].to(device)
-
-    # attn_pack[attn_mod_idx].to(device)
 
 
-    prefix_pack[encoder_mod_idx].cpu()
-    postfix_pack[encoder_mod_idx].cpu()
-    prefix_pack[decoder_mod_idx].cpu()
-    postfix_pack[decoder_mod_idx].cpu()
+    # ********************* PREDICT TOKEN SEQUENCE *********************
 
-    attn_pack[attn_mod_idx].cpu()
+    # [token_labels (10 tokens), batch_size (1), token choices (214 tokens choices)]
+    results = model(prefix, postfix, labels)
 
 
-    prefix_pack[encoder_mod_idx].eval()
-    postfix_pack[encoder_mod_idx].eval()
-    prefix_pack[decoder_mod_idx].eval()
-    postfix_pack[decoder_mod_idx].eval()
+    tok_list = []
+    for i in range(results.shape[0]):
 
-    attn_pack[attn_mod_idx].eval()
+        # the token with highest probability
+        preds = results[i].argmax(1).flatten()
 
-    # --------------------------------------------------------
-
-    # Perform a forward pass. This will return logits.
+        # append each token to list
+        tok_list.append(preds.item())
     
-    # encoder [batch_size, embed_dim] -->
-    # output = [batch_size, token numbers, hidden_size*2]
-    # hidden = [2, batch_size, hidden_size]
-    encoder_prefix_hiddens, prefix_state = prefix_pack[encoder_mod_idx](prefix)
-
-
-    # encoder [batch_size, embed_dim] -->
-    # output = [batch_size, token numbers, hidden_size*2]
-    # hidden = [2, batch_size, hidden_size]
-    encoder_postfix_hiddens, postfix_state = postfix_pack[encoder_mod_idx](postfix)
-
-
-
-    # gives the first token for each labels in batch
-    # input = [batch_size, 1] (containing the 0st token)
-    # input = labels[:,0].unsqueeze(1)
-    input = torch.full((1, 1), 213).cpu()
-
-    # --------------------------------------------------------
-
-    total_token_seq = list()
-
-    for i in range(-1, 10-1, 1):
-
-        # [batch_size, single token, hidden_size*2]
-        decoder_prefix_hiddens, prefix_state = prefix_pack[decoder_mod_idx](input, prefix_state)
-        decoder_postfix_hiddens, postfix_state = postfix_pack[decoder_mod_idx](input, postfix_state)
-
-        # [batch_size, output_size]
-        result = attn_pack[attn_mod_idx](
-            encoder_prefix_hiddens,
-            encoder_postfix_hiddens,
-            decoder_prefix_hiddens,
-            decoder_postfix_hiddens
-        )
-
-        
-        preds = result.argmax(1).flatten()
-        total_token_seq.append(preds.item())
-
-        input = result.argmax(1).unsqueeze(1) 
     
-    print(total_token_seq)
+    return tok_list
 
 
 
 
 
-def predict(prefix, postfix, prefix_pack, postfix_pack, attn_pack):
+def predictWithBeam(
+    prefix,
+    postfix,
+    model=None,
+    device=None
+):
+
+
+    # ********************* INSTANTIATE MODEL INPUT DATA *********************
 
     prefix = torch.tensor(prefix).unsqueeze(dim=0)
     postfix = torch.tensor(postfix).unsqueeze(dim=0)
+
+    labels = torch.zeros(1, 10).to(device).long()
+
+    model = model.to(device)
+    prefix = prefix.to(device)
+    postfix = postfix.to(device)
+    labels = labels.to(device)
+    prefix = torch.tensor(prefix).unsqueeze(dim=0)
+    postfix = torch.tensor(postfix).unsqueeze(dim=0)
+
+
+
+
+    # ********************* PREDICT TOKEN SEQUENCE *********************
+
+    # [token_labels (10 tokens), batch_size (1), token choices (214 tokens choices)]
+    results = model(prefix, postfix, labels)
+
+
+    tok_list = []
+    for i in range(results.shape[0]):
+
+        # the token with highest probability
+        preds = results[i].argmax(1).flatten()
+
+        # append each token to list
+        tok_list.append(preds.item())
+    
+    
+    return tok_list
 
     # --------------------------------------------------------
 
