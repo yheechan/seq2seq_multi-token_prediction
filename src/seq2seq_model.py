@@ -254,7 +254,10 @@ class MySeq2Seq(nn.Module):
         )
 
 
-    def forward(self, prefix, postfix, labels, teacher_forcing_ratio=0.0):
+    def forward(self, prefix, postfix, labels, teacher_forcing_ratio=0.0, beam=False):
+
+        # input : [batch_size, token_len (64)]
+        # labels : [batch_size, labels tokens (10)]
 
         batch_size = labels.shape[0]
         label_len = labels.shape[1]
@@ -362,7 +365,7 @@ class MySeq2Seq(nn.Module):
             outputs[i+1] = result 
 
 
-            if teacher_forcing:
+            if teacher_forcing or beam:
                 input = labels[:,i+1].unsqueeze(1)
             else:
                 input = result.argmax(1).unsqueeze(1)

@@ -1,8 +1,5 @@
 import torch
-import torch.nn as nn
 import numpy as np
-from sklearn import metrics
-import pandas as pd
 
 def test(
     test_dataloader=None,

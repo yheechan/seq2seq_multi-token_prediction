@@ -1,8 +1,7 @@
-# from tkinter import W
 import torch
 import torch.nn.functional as F
-import math
-from collections import defaultdict
+import torch.utils.data as tud
+from tqdm.auto import tqdm
 import copy
 
 
@@ -16,6 +15,7 @@ def predictNoBeam(
 
     # ********************* INSTANTIATE MODEL INPUT DATA *********************
 
+    # [batch_size (1), token_length (64)]
     prefix = torch.tensor(prefix).unsqueeze(dim=0)
     postfix = torch.tensor(postfix).unsqueeze(dim=0)
 
@@ -51,135 +51,53 @@ def predictNoBeam(
 
 
 
-def predictWithBeam(
+
+
+def myBeamStart(
+    model,
     prefix,
     postfix,
-    model=None,
-    device=None
+    device=None,
+    predictions=10,
+    beam_width=2
 ):
-
-
     # ********************* INSTANTIATE MODEL INPUT DATA *********************
 
+    # [batch_size (1), token_length (64)]
     prefix = torch.tensor(prefix).unsqueeze(dim=0)
     postfix = torch.tensor(postfix).unsqueeze(dim=0)
 
-    labels = torch.zeros(1, 10).to(device).long()
+    # [batch_size, token_label]
+    # Y = torch.full((PREFIX.shape[0], 1), 213).to(device).long()
 
-    model = model.to(device)
-    prefix = prefix.to(device)
-    postfix = postfix.to(device)
-    labels = labels.to(device)
-    prefix = torch.tensor(prefix).unsqueeze(dim=0)
-    postfix = torch.tensor(postfix).unsqueeze(dim=0)
-
-
-
-
-    # ********************* PREDICT TOKEN SEQUENCE *********************
-
-    # [token_labels (10 tokens), batch_size (1), token choices (214 tokens choices)]
-    results = model(prefix, postfix, labels)
-
-
-    tok_list = []
-    for i in range(results.shape[0]):
-
-        # the token with highest probability
-        preds = results[i].argmax(1).flatten()
-
-        # append each token to list
-        tok_list.append(preds.item())
-    
-    
-    return tok_list
-
-    # --------------------------------------------------------
-
-    encoder_mod_idx = 0
-    decoder_mod_idx = 1
-    encoder_opt_idx = 2
-    decoder_opt_idx = 3
-
-    attn_mod_idx = 0
-    attn_opt_idx = 1
-
-
-    # --------------------------------------------------------
-
-    # Put the model into the evaluation mode. The dropout layers are disabled
-    # during the test time.
-    # prefix_pack[encoder_mod_idx].to(device)
-    # postfix_pack[encoder_mod_idx].to(device)
-    # prefix_pack[decoder_mod_idx].to(device)
-    # postfix_pack[decoder_mod_idx].to(device)
-
-    # attn_pack[attn_mod_idx].to(device)
-
-
-    prefix_pack[encoder_mod_idx].cpu()
-    postfix_pack[encoder_mod_idx].cpu()
-    prefix_pack[decoder_mod_idx].cpu()
-    postfix_pack[decoder_mod_idx].cpu()
-
-    attn_pack[attn_mod_idx].cpu()
-
-
-    prefix_pack[encoder_mod_idx].eval()
-    postfix_pack[encoder_mod_idx].eval()
-    prefix_pack[decoder_mod_idx].eval()
-    postfix_pack[decoder_mod_idx].eval()
-
-    attn_pack[attn_mod_idx].eval()
-
-    # --------------------------------------------------------
-
-    # Perform a forward pass. This will return logits.
-    
-    # encoder [batch_size, embed_dim] -->
-    # output = [batch_size, token numbers, hidden_size*2]
-    # hidden = [2, batch_size, hidden_size]
-    encoder_prefix_hiddens, prefix_state = prefix_pack[encoder_mod_idx](prefix)
-
-
-    # encoder [batch_size, embed_dim] -->
-    # output = [batch_size, token numbers, hidden_size*2]
-    # hidden = [2, batch_size, hidden_size]
-    encoder_postfix_hiddens, postfix_state = postfix_pack[encoder_mod_idx](postfix)
-
-
-
-    # gives the first token for each labels in batch
-    # input = [batch_size, 1] (containing the 0st token)
-    # input = labels[:,0].unsqueeze(1)
-    input = torch.full((1, 1), 213).cpu()
-
-    # --------------------------------------------------------
 
     total_token_seq = list()
     total_seq_score = list()
     token_stack = list()
     score_stack = list()
 
-    bean_search(
-        input,
-        0,
+    labels = torch.tensor(copy.deepcopy([0])).unsqueeze(dim=0)
 
-        prefix_pack[decoder_mod_idx],
-        postfix_pack[decoder_mod_idx],
 
-        prefix_state,
-        postfix_state,
+    model = model.to(device)
+    prefix = prefix.to(device)
+    postfix = postfix.to(device)
+    labels = labels.to(device)
 
-        attn_pack[attn_mod_idx],
 
-        encoder_prefix_hiddens,
-        encoder_postfix_hiddens,
+    beamSearch(
+        model,
 
+        prefix,
+        postfix,
+        labels,
+ 
         total_token_seq,
         total_seq_score,
         token_stack,
-        score_stack
+        score_stack,
+        0,
+        beam_width=beam_width
     )
 
     torch_scores = torch.FloatTensor(total_seq_score)
@@ -187,155 +105,212 @@ def predictWithBeam(
 
     pred_results = []
     for i in range(5):
-        # pred_results.append(total_token_seq[indices[i]])
         ordered_score_idx = indices[i].item()
         pred_results.append(total_token_seq[ordered_score_idx])
-
+    
     return pred_results
 
 
-def bean_search(
-    input,
-    limit,
 
-    prefix_decoder,
-    postfix_decoder,
 
-    prefix_state,
-    postfix_state,
-
-    attn_model,
-
-    encoder_prefix_hiddens,
-    encoder_postfix_hiddens,
-
+def beamSearch(
+    model,
+    prefix,
+    postfix,
+    labels,
     total_token_seq,
     total_seq_score,
     token_stack,
-    score_stack
+    score_stack,
+    limit,
+    beam_width=2
 ):
 
-    prefix_state, postfix_state, \
-    sorted, indices, next_input =   return_predictions(
-                            input,
-
-                            prefix_decoder,
-                            postfix_decoder,
-
-                            prefix_state,
-                            postfix_state,
-
-                            attn_model,
-
-                            encoder_prefix_hiddens,
-                            encoder_postfix_hiddens,
-                        )
-    
-    
-    for i in range(2):
-        # token_stack.append(indices[i].item())
-        # score_stack.append(sorted[indices[i]].item())
-
-        input = torch.full((1, 1), indices[i].item()).cpu()
-
-        value = input[0].item()
+    sorted, indices = beamed(model, prefix, postfix, labels)
 
 
-        if limit == 10 or value == 0:
+    for i in range(beam_width):
 
-            score = log_score(score_stack)
+        end_value = indices[i].item()
+        end_score = sorted[i].item()
 
-            total_token_seq.append( copy.deepcopy(token_stack) )
-            total_seq_score.append( score )
+        # if limit == 10 or end_value == 0:
+        if limit == 10:
+            total_score_tensor = torch.sum(torch.tensor(copy.deepcopy(score_stack)))
+            total_seq_score.append(total_score_tensor)
 
+            total_token_seq.append(copy.deepcopy(token_stack))
+            break
         else:
             limit += 1
 
-            token_stack.append(indices[i].item())
-            score_stack.append(sorted[indices[i]].item())
+            token_stack.append(end_value)
+            token_stack.append(0)
+            score_stack.append(end_score)
+ 
+            labels = torch.tensor(copy.deepcopy(token_stack)).unsqueeze(dim=0).to(
+                next(model.parameters()).device
+            ).long()
+            token_stack.pop()
 
-            bean_search(
-                input,
-                limit,
-
-                prefix_decoder,
-                postfix_decoder,
-
-                prefix_state,
-                postfix_state,
-
-                attn_model,
-
-                encoder_prefix_hiddens,
-                encoder_postfix_hiddens,
-
+            beamSearch(
+                model,
+                prefix,
+                postfix,
+                labels,
                 total_token_seq,
                 total_seq_score,
                 token_stack,
-                score_stack
+                score_stack,
+                limit
             )
 
             token_stack.pop()
             score_stack.pop()
+            limit -= 1
+
+
+
+def beamed(model, prefix, postfix, labels):
+    with torch.no_grad():
+        logits = model.forward(prefix, postfix, labels, beam=True)
+        probs = F.softmax(logits[-1], dim=1).squeeze(dim=0)
+        sorted, indices = torch.sort(probs, descending=True)
+    return sorted, indices
 
 
 
 
 
 
-def log_score(list):
-    mul_score = 1
 
-    for i in list:
-        mul_score *= i
-    
-    log_score = math.log(mul_score)
-
-
-    return log_score
-
-def return_predictions(
-    input,
-
-    prefix_decoder,
-    postfix_decoder,
-
-    prefix_state,
-    postfix_state,
-
-    attn_model,
-
-    encoder_prefix_hiddens,
-    encoder_postfix_hiddens,
+def beam_search(
+    model, 
+    PREFIX, 
+    POSTFIX,
+    device = None,
+    predictions = 10,
+    beam_width = 5,
+    batch_size = 50, 
+    progress_bar = 0
 ):
-    # [batch_size, single token, hidden_size*2]
-    decoder_prefix_hiddens, prefix_state = prefix_decoder(input, prefix_state)
-    decoder_postfix_hiddens, postfix_state = postfix_decoder(input, postfix_state)
+    """
+    Implements Beam Search to compute the output with the sequences given in X. The method can compute 
+    several outputs in parallel with the first dimension of X.
 
-    # [batch_size, output_size]
-    logits = attn_model(
-        encoder_prefix_hiddens,
-        encoder_postfix_hiddens,
-        decoder_prefix_hiddens,
-        decoder_postfix_hiddens
-    )
+    Parameters
+    ----------    
+    X: LongTensor of shape (examples, length)
+        The sequences to start the decoding process.
 
-    answer = logits.argmax(1).unsqueeze(1)
+    predictions: int
+        The number of tokens to append to X.
 
-    probs = F.softmax(logits, dim=1).squeeze(dim=0)
+    beam_width: int
+        The number of candidates to keep in the search.
 
-    sorted, indices = torch.sort(probs, descending=True)
+    batch_size: int
+        The batch size of the inner loop of the method, which relies on the beam width. 
 
-    # print('---------')
-    # print(answer)
+    progress_bar: int 
+        Shows a tqdm progress bar, useful for tracking progress with large tensors. Ranges from 0 to 2.
 
-    # for i in range(5):
-    #     print(str(indices[i].item()) + ': ' + str(sorted[i].item()) + '%')
+    Returns
+    -------
+    Y: LongTensor of shape (examples, length + predictions)
+        The output sequences.
 
-    # if answer == 1:
-    #     print('done')
-    #     break
+    probabilities: FloatTensor of length examples
+        The estimated log-probabilities for the output sequences. They are computed by iteratively adding the 
+        probability of the next token at every step.
+    """
 
-    # input = answer
+    # ********************* INSTANTIATE MODEL INPUT DATA *********************
 
-    return prefix_state, postfix_state, sorted, indices, answer
+    # [batch_size (1), token_length (64)]
+    PREFIX = torch.tensor(PREFIX).unsqueeze(dim=0)
+    POSTFIX = torch.tensor(POSTFIX).unsqueeze(dim=0)
+
+    Y = torch.full((PREFIX.shape[0], 1), 213).to(device).long()
+
+    model = model.to(device)
+    PREFIX = PREFIX.to(device)
+    POSTFIX = POSTFIX.to(device)
+    Y = Y.to(device)
+
+    with torch.no_grad():
+
+
+        # Y = torch.ones(PREFIX.shape[0], 1).to(next(model.parameters()).device).long()
+        
+
+        # The next command can be a memory bottleneck, can be controlled with the batch 
+        # size of the predict method.
+
+        # [label_len (10 labels), batch_size, output_size (214 token choices)]
+        next_probabilities = model.forward(PREFIX, POSTFIX, Y, beam=True)
+        
+        next_probabilities = next_probabilities[-1, :, :]
+
+        vocabulary_size = next_probabilities.shape[-1]
+
+        probabilities, next_chars = next_probabilities.squeeze().log_softmax(-1)\
+        .topk(k = beam_width, axis = -1)
+
+        Y = Y.repeat((beam_width, 1))
+        next_chars = next_chars.reshape(-1, 1)
+        Y = torch.cat((Y, next_chars), axis = -1)
+        # Y = next_chars
+
+        # This has to be minus one because we already produced a round
+        # of predictions before the for loop.
+        predictions_iterator = range(predictions - 1)
+        if progress_bar > 0:
+            predictions_iterator = tqdm(predictions_iterator)
+
+        for i in predictions_iterator:
+            dataset = tud.TensorDataset(
+                PREFIX.repeat((beam_width, 1, 1)).transpose(0, 1).flatten(end_dim = 1),
+                POSTFIX.repeat((beam_width, 1, 1)).transpose(0, 1).flatten(end_dim = 1),
+                Y)
+
+            loader = tud.DataLoader(dataset, batch_size = batch_size)
+            next_probabilities = []
+            iterator = iter(loader)
+
+            if progress_bar > 1:
+                iterator = tqdm(iterator)
+
+            for prefix, postfix, y in iterator:
+                # print(y)
+                probs = model.forward(prefix, postfix, y, beam=True)[-1, :, :].log_softmax(-1)
+                next_probabilities.append(probs)
+
+
+            next_probabilities = torch.cat(next_probabilities, axis = 0)
+            # print('\n--cat probs--')
+            # print(next_probabilities.shape)
+
+            next_probabilities = next_probabilities.reshape((-1, beam_width, next_probabilities.shape[-1]))
+            # print('\n--reshape probs--')
+            # print(next_probabilities.shape)
+
+            probabilities = probabilities.unsqueeze(-1) + next_probabilities
+            # print('\n-- + probs--')
+            # print(probabilities.shape)
+
+            probabilities = probabilities.flatten(start_dim = 1)
+            probabilities, idx = probabilities.topk(k = beam_width, axis = -1)
+
+            next_chars = torch.remainder(idx, vocabulary_size).flatten().unsqueeze(-1)
+            # print('\n--next_chars--')
+            # print(next_chars)
+            # print()
+            # print()
+
+            best_candidates = (idx / vocabulary_size).long()
+            best_candidates += torch.arange(Y.shape[0] // beam_width, device = PREFIX.device).unsqueeze(-1) * beam_width
+            Y = Y[best_candidates].flatten(end_dim = -2)
+            Y = torch.cat((Y, next_chars), axis = 1)
+
+        return Y.reshape(-1, beam_width, Y.shape[-1]), probabilities
