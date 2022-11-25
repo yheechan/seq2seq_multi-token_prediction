@@ -341,7 +341,6 @@ class MySeq2Seq(nn.Module):
             # [batch_size, single token, hidden_size*2]
             # [2, batch_size, hidden_size] for each hidden and cell in end_state
             decoder_hiddens, end_state = self.decoder(input, end_state)
-            # decoder_postfix_hiddens, postfix_state = postfix_pack[decoder_mod_idx](input, prefix_state, postfix_state)
 
             (hidden, cell) = end_state
 

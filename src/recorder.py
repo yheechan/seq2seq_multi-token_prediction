@@ -1,14 +1,12 @@
 import json
 
 def record_list(fn, list):
-    
     print('writing to \"' + fn + '\"')
 
     with open(fn, 'w') as f:
         f.write('\n'.join(list))
 
 def record_dict(fn, dict):
-
     print('writing to \"' + fn + '\"')
 
     with open(fn, 'w') as f:
