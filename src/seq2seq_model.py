@@ -200,10 +200,10 @@ class MySeq2Seq(nn.Module):
         embed_dim=100,
         hidden_size=200,
         n_layers=1,
-        output_size=214,
-        dropout=0.3,
+        output_size=155,
+        dropout=0.0,
         max_length=64,
-        input_size=214,
+        input_size=155,
         device=None
     ):
 
@@ -312,7 +312,7 @@ class MySeq2Seq(nn.Module):
         # gives the first token for each labels in batch
         # 213 is BOS
         # [batch_size, 1]
-        input = torch.full((batch_size, 1), 213).to(self.device)
+        input = torch.full((batch_size, 1), self.output_size-1).to(self.device)
 
 
         # [label_len (10 labels), batch_size, output_size (214 token choices)]

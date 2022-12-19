@@ -15,7 +15,7 @@ def insertEOS(tok_list, idx):
     tmp.insert(idx, 1)
     return tmp
 
-def getTrainData(proj_list, target_project):
+def getTrainData(proj_list, target_project, version):
 
     total_file = 'total'
 
@@ -33,7 +33,7 @@ def getTrainData(proj_list, target_project):
 
         print('Getting data for \"' + target_project + '\" from \"' + proj + '\"')
 
-        with open('../data/' + proj, 'r') as f:
+        with open('../data/' + version + '/' + proj, 'r') as f:
             lines = f.readlines()
         
         for line in lines:
@@ -45,28 +45,28 @@ def getTrainData(proj_list, target_project):
 
             prefix.append(json_data['prefix'])
 
+            # remove first token of postfix and insert paddin at the end
             postfix_data = json_data['postfix']
             postfix_data.pop()
             postfix_data.insert(0, 0)
             postfix.append(postfix_data)
 
             label_type.append(json_data['label-type'])
-
             label_len.append(json_data['label-len'])
     
         # ------------------------------------------------------
         # break for reducing test time for quick development
-        # break
+        break
     
     return np.array(prefix), np.array(postfix), np.array(label_type), np.array(label_len)
 
-def getTestData(target_project):
+def getTestData(target_project, version):
     prefix = []
     postfix = []
     label_type = []
     label_len = []
 
-    with open('../data/' + target_project, 'r') as f:
+    with open('../data/' + version + '/' + target_project, 'r') as f:
 
         lines = f.readlines()
     
@@ -79,13 +79,13 @@ def getTestData(target_project):
 
         prefix.append(json_data['prefix'])
 
+        # remove first token of postfix and insert paddin at the end
         postfix_data = json_data['postfix']
         postfix_data.pop()
         postfix_data.insert(0, 0)
         postfix.append(postfix_data)
 
         label_type.append(json_data['label-type'])
-
         label_len.append(json_data['label-len'])
     
     return np.array(prefix), np.array(postfix), np.array(label_type), np.array(label_len)
